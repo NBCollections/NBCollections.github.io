@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>NB Collections</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <style>
 body{margin:0;font-family:system-ui;background:#f3f4f6}
 .topbar{background:#131921;color:#fff;padding:14px 20px;font-size:22px;font-weight:800}
@@ -12,18 +11,12 @@ body{margin:0;font-family:system-ui;background:#f3f4f6}
 .filters input,.filters select{padding:10px;border-radius:8px;border:1px solid #ddd}
 .container{max-width:1300px;margin:auto;padding:20px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px}
-.card{background:#fff;border-radius:14px;padding:10px;box-shadow:0 10px 25px rgba(0,0,0,.08);cursor:pointer;transition:.2s}
-.card:hover{transform:translateY(-4px)}
+.card{background:#fff;border-radius:14px;padding:10px;box-shadow:0 10px 25px rgba(0,0,0,.08);cursor:pointer}
 .card img{width:100%;height:220px;object-fit:cover;border-radius:10px}
-.price{font-weight:800;color:#b12704}
-.old{color:#666;text-decoration:line-through;font-size:13px}
-.badge{background:#cc0c39;color:#fff;padding:3px 7px;border-radius:6px;font-size:12px;margin-left:6px}
-.code{font-size:12px;color:#555;margin-top:2px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
 .modal-box{background:#fff;border-radius:16px;max-width:900px;width:100%;padding:20px;max-height:90vh;overflow:auto}
-.slider img{width:100%;border-radius:12px}
 .thumb{display:flex;gap:6px;margin-top:8px}
-.thumb img{width:60px;height:60px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.thumb img{width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent}
 .thumb img.active{border-color:#2563eb}
 .order-btn{width:100%;margin-top:14px;background:#25D366;border:none;padding:12px;border-radius:10px;font-weight:800;color:#fff;cursor:pointer}
 .close{float:right;font-size:22px;cursor:pointer}
@@ -40,10 +33,10 @@ body{margin:0;font-family:system-ui;background:#f3f4f6}
 </div>
 
 <div class="container">
-<div id="productGrid" class="grid"></div>
+<div id="grid" class="grid"></div>
 </div>
 
-<div id="productModal" class="modal">
+<div id="modal" class="modal">
 <div class="modal-box">
 <span id="closeModal" class="close">✖</span>
 <div id="modalBody"></div>
@@ -61,29 +54,28 @@ projectId:"nbcollections-9c446"
 });
 const db=getFirestore(app);
 
-const grid=document.getElementById("productGrid");
+const grid=document.getElementById("grid");
 const categoryFilter=document.getElementById("categoryFilter");
 const minPrice=document.getElementById("minPrice");
 const maxPrice=document.getElementById("maxPrice");
-const modal=document.getElementById("productModal");
+const modal=document.getElementById("modal");
 const modalBody=document.getElementById("modalBody");
 
 let products=[];
 
 onSnapshot(collection(db,"products"),snap=>{
 products=snap.docs.map(d=>d.data());
-buildCategoryList();
+buildCats();
 applyFilters();
 });
 
-function buildCategoryList(){
+function buildCats(){
 const set=new Set(products.map(p=>p.category).filter(Boolean));
 categoryFilter.innerHTML='<option value="">All Categories</option>';
 set.forEach(c=>{
-const opt=document.createElement("option");
-opt.value=c;
-opt.textContent=c;
-categoryFilter.appendChild(opt);
+const o=document.createElement("option");
+o.value=c;o.textContent=c;
+categoryFilter.appendChild(o);
 });
 }
 
@@ -96,36 +88,22 @@ const cat=categoryFilter.value;
 const min=Number(minPrice.value)||0;
 const max=Number(maxPrice.value)||Infinity;
 
-const filtered=products.filter(p=>{
+const list=products.filter(p=>{
 const price=p.discount||p.price||0;
 return(!cat||p.category===cat)&&price>=min&&price<=max;
 });
 
-renderProducts(filtered);
+render(list);
 }
 
-function discountPercent(p){
-if(!p.discount||!p.price) return 0;
-return Math.round(((p.price-p.discount)/p.price)*100);
-}
-
-function renderProducts(list){
+function render(list){
 grid.innerHTML="";
 list.forEach(p=>{
-const card=document.createElement("div");
-card.className="card";
-card.onclick=()=>openProduct(p);
-
-card.innerHTML=`
-<img src="${p.images?.[0]||""}">
-<div><b>${p.name||"Unnamed"}</b></div>
-<div class="code">Code: ${p.itemCode||""}</div>
-${p.discount?`
-<div class="old">₹${p.price}</div>
-<div class="price">₹${p.discount}<span class="badge">${discountPercent(p)}% OFF</span></div>
-`:`<div class="price">₹${p.price||0}</div>`}
-`;
-grid.appendChild(card);
+const c=document.createElement("div");
+c.className="card";
+c.onclick=()=>openProduct(p);
+c.innerHTML=`<img src="${p.images?.[0]||""}"><div><b>${p.name||""}</b></div><div style="font-size:12px;color:#555">Code: ${p.itemCode||""}</div>`;
+grid.appendChild(c);
 });
 }
 
@@ -134,47 +112,39 @@ let index=0;
 
 modalBody.innerHTML=`
 <h2>${p.name||""}</h2>
-<div style="margin-bottom:6px;font-size:13px;color:#555">Item Code: ${p.itemCode||""}</div>
-<div class="slider"><img id="mainImage"></div>
+<div style="font-size:13px;color:#555">Base Code: ${p.itemCode||""}</div>
+<img id="mainImg" style="width:100%;border-radius:12px;margin-top:10px">
 <div id="thumbRow" class="thumb"></div>
 <p>${p.desc||""}</p>
-<div style="margin-top:10px">
-<b>Select Color:</b><br>
-${(p.colors||[]).map(c=>`<label><input type="radio" name="colorSel" value="${c}"> ${c}</label>`).join("<br>")}
-</div>
-<button id="orderBtn" class="order-btn">Order on WhatsApp</button>
+<button id="orderBtn" class="order-btn">Order This One</button>
 `;
 
 modal.style.display="flex";
 
-const mainImage=document.getElementById("mainImage");
+const mainImg=document.getElementById("mainImg");
 const thumbRow=document.getElementById("thumbRow");
 
-function showImage(){
-mainImage.src=p.images?.[index]||"";
+function show(){
+mainImg.src=p.images?.[index]||"";
 thumbRow.querySelectorAll("img").forEach((t,i)=>t.classList.toggle("active",i===index));
 }
 
 (p.images||[]).forEach((img,i)=>{
 const t=document.createElement("img");
 t.src=img;
-t.onclick=()=>{index=i;showImage();};
+t.onclick=()=>{index=i;show();};
 thumbRow.appendChild(t);
 });
 
-showImage();
+show();
 
 document.getElementById("orderBtn").onclick=()=>{
-const selected=document.querySelector("input[name=colorSel]:checked");
-const colorLine=selected?`Color: ${selected.value}`:"";
-
+const finalCode=`${p.itemCode||""}/${index+1}`;
 const message=
 `Hello, I want this product:
 
-Item Code: ${p.itemCode||""}
+Item Code: ${finalCode}
 Name: ${p.name||""}
-${colorLine}
-Price: ₹${p.discount||p.price||0}
 
 Description:
 ${p.desc||""}`;
@@ -188,9 +158,7 @@ window.open(url,"_blank");
 };
 }
 
-document.getElementById("closeModal").onclick=()=>{
-modal.style.display="none";
-};
+document.getElementById("closeModal").onclick=()=>modal.style.display="none";
 </script>
 </body>
 </html>
