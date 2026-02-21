@@ -82,193 +82,178 @@ button.danger{background:#ef4444;color:#fff}
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import{getFirestore,collection,addDoc,serverTimestamp,onSnapshot,deleteDoc,doc}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const app = initializeApp({
-  apiKey:"AIzaSyCz_ofUMnrO-MpGRZQzi8QFwkFMTM5qK2o",
-  authDomain:"nbcollections-9c446.firebaseapp.com",
-  projectId:"nbcollections-9c446"
+const app=initializeApp({
+apiKey:"AIzaSyCz_ofUMnrO-MpGRZQzi8QFwkFMTM5qK2o",
+authDomain:"nbcollections-9c446.firebaseapp.com",
+projectId:"nbcollections-9c446"
 });
-const db = getFirestore(app);
+const db=getFirestore(app);
 
 let colors=[];
 let selectedFiles=[];
 let existingCodes=new Set();
 
-/* SAFE ELEMENTS */
 const loginBtn=document.getElementById("loginBtn");
 const submitBtn=document.getElementById("submitBtn");
 const imagesInput=document.getElementById("images");
 
-/* LOGIN */
 loginBtn.onclick=()=>{
-  const pinEl=document.getElementById("pinInput");
-  if(pinEl && pinEl.value==="123456"){
-    document.getElementById("loginCard").classList.add("hidden");
-    document.getElementById("panel").classList.remove("hidden");
-    startProductsListener();
-  }else{
-    document.getElementById("loginMsg").textContent="Wrong PIN";
-  }
+const pin=document.getElementById("pinInput");
+if(pin&&pin.value==="123456"){
+document.getElementById("loginCard").classList.add("hidden");
+document.getElementById("panel").classList.remove("hidden");
+startProductsListener();
+}else{
+document.getElementById("loginMsg").textContent="Wrong PIN";
+}
 };
 
-/* IMAGE COMPRESS */
 function compressImage(file){
-  return new Promise(resolve=>{
-    const img=new Image();
-    const reader=new FileReader();
-    reader.onload=e=>img.src=e.target.result;
-    img.onload=()=>{
-      const canvas=document.createElement("canvas");
-      const scale=Math.min(1,1000/img.width);
-      canvas.width=img.width*scale;
-      canvas.height=img.height*scale;
-      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-      resolve(canvas.toDataURL("image/jpeg",0.8));
-    };
-    reader.readAsDataURL(file);
-  });
+return new Promise(resolve=>{
+const img=new Image();
+const reader=new FileReader();
+reader.onload=e=>img.src=e.target.result;
+img.onload=()=>{
+const MAX_WIDTH=800;
+const scale=Math.min(1,MAX_WIDTH/img.width);
+const canvas=document.createElement("canvas");
+canvas.width=img.width*scale;
+canvas.height=img.height*scale;
+canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+resolve(canvas.toDataURL("image/jpeg",0.6));
+};
+reader.readAsDataURL(file);
+});
 }
 
-/* MULTI IMAGE */
-imagesInput.addEventListener("change",(e)=>{
-  const newFiles=[...e.target.files];
-  for(const f of newFiles){
-    if(selectedFiles.length>=5) break;
-    selectedFiles.push(f);
-  }
-  renderPreview();
-  imagesInput.value="";
+imagesInput.addEventListener("change",e=>{
+const files=[...e.target.files];
+for(const f of files){
+if(selectedFiles.length>=5) break;
+selectedFiles.push(f);
+}
+renderPreview();
+imagesInput.value="";
 });
 
 function renderPreview(){
-  const preview=document.getElementById("imagePreview");
-  preview.innerHTML="";
-  selectedFiles.forEach(f=>{
-    const img=document.createElement("img");
-    img.src=URL.createObjectURL(f);
-    img.className="preview";
-    preview.appendChild(img);
-  });
+const box=document.getElementById("imagePreview");
+box.innerHTML="";
+selectedFiles.forEach(f=>{
+const img=document.createElement("img");
+img.src=URL.createObjectURL(f);
+img.className="preview";
+box.appendChild(img);
+});
 }
 
-/* COLORS */
 document.getElementById("addColorBtn").onclick=()=>{
-  const colorInput=document.getElementById("colorName");
-  if(!colorInput.value) return;
-  colors.push(colorInput.value.trim());
-  document.getElementById("colorList").innerHTML+=`<div>${colorInput.value}</div>`;
-  colorInput.value="";
+const c=document.getElementById("colorName");
+if(!c.value) return;
+colors.push(c.value.trim());
+document.getElementById("colorList").innerHTML+=`<div>${c.value}</div>`;
+c.value="";
 };
 
-/* ADD PRODUCT — BULLETPROOF */
 submitBtn.onclick=async()=>{
-  const itemCodeEl=document.getElementById("itemCode");
-  const nameEl=document.getElementById("name");
-  const descEl=document.getElementById("desc");
-  const priceEl=document.getElementById("price");
-  const discountEl=document.getElementById("discount");
-  const categoryEl=document.getElementById("category");
-  const msgEl=document.getElementById("msg");
+const itemCodeEl=document.getElementById("itemCode");
+const nameEl=document.getElementById("name");
+const descEl=document.getElementById("desc");
+const priceEl=document.getElementById("price");
+const discountEl=document.getElementById("discount");
+const categoryEl=document.getElementById("category");
+const msgEl=document.getElementById("msg");
 
-  if(!itemCodeEl || !nameEl){
-    alert("Form not ready. Refresh.");
-    return;
-  }
+if(!itemCodeEl||!nameEl){alert("Refresh page");return;}
 
-  const code=itemCodeEl.value.trim();
-  const productName=nameEl.value.trim();
+const code=itemCodeEl.value.trim();
+const productName=nameEl.value.trim();
 
-  if(!code){ alert("Item code required"); return; }
-  if(existingCodes.has(code)){ alert("Item code already exists"); return; }
-  if(!productName){ alert("Product name required"); return; }
-  if(selectedFiles.length<1 || selectedFiles.length>5){
-    alert("Upload 1–5 images"); return;
-  }
+if(!code){alert("Item code required");return;}
+if(existingCodes.has(code)){alert("Item code already exists");return;}
+if(!productName){alert("Product name required");return;}
+if(selectedFiles.length<1||selectedFiles.length>5){alert("Upload 1–5 images");return;}
 
-  submitBtn.disabled=true;
-  msgEl.textContent="Uploading...";
+submitBtn.disabled=true;
+msgEl.textContent="Uploading...";
 
-  try{
-    const imageUrls=[];
-    for(const f of selectedFiles){
-      imageUrls.push(await compressImage(f));
-    }
+try{
+const imageUrls=[];
+for(const f of selectedFiles){
+imageUrls.push(await compressImage(f));
+}
 
-    await addDoc(collection(db,"products"),{
-      itemCode:code,
-      name:productName,
-      desc:descEl?.value?.trim()||"",
-      price:Number(priceEl?.value)||0,
-      discount:discountEl?.value ? Number(discountEl.value) : null,
-      category:categoryEl?.value?.trim()||"",
-      images:imageUrls,
-      colors:colors||[],
-      whatsapp:"917798419643",
-      created:serverTimestamp()
-    });
+await addDoc(collection(db,"products"),{
+itemCode:code,
+name:productName,
+desc:descEl?.value?.trim()||"",
+price:Number(priceEl?.value)||0,
+discount:discountEl?.value?Number(discountEl.value):null,
+category:categoryEl?.value?.trim()||"",
+images:imageUrls,
+colors:colors||[],
+whatsapp:"917798419643",
+created:serverTimestamp()
+});
 
-    msgEl.textContent="✅ Product added";
+msgEl.textContent="✅ Product added";
 
-    document.querySelectorAll("input,textarea").forEach(el=>el.value="");
-    selectedFiles=[]; colors=[];
-    document.getElementById("imagePreview").innerHTML="";
-    document.getElementById("colorList").innerHTML="";
-
-  }catch(err){
-    console.error(err);
-    msgEl.textContent="Error: "+err.message;
-  }
-
-  submitBtn.disabled=false;
+document.querySelectorAll("input,textarea").forEach(el=>el.value="");
+selectedFiles=[];colors=[];
+document.getElementById("imagePreview").innerHTML="";
+document.getElementById("colorList").innerHTML="";
+}catch(err){
+msgEl.textContent="Error: "+err.message;
+}
+submitBtn.disabled=false;
 };
 
-/* PRODUCT LIST */
 function startProductsListener(){
-  onSnapshot(collection(db,"products"),snap=>{
-    const list=document.getElementById("productList");
-    list.innerHTML="";
-    existingCodes.clear();
+onSnapshot(collection(db,"products"),snap=>{
+const list=document.getElementById("productList");
+list.innerHTML="";
+existingCodes.clear();
 
-    snap.forEach(d=>{
-      const p=d.data();
-      if(p.itemCode) existingCodes.add(p.itemCode);
+snap.forEach(d=>{
+const p=d.data();
+if(p.itemCode) existingCodes.add(p.itemCode);
 
-      const row=document.createElement("div");
-      row.className="product-row";
+const row=document.createElement("div");
+row.className="product-row";
+row.innerHTML=`
+<div style="cursor:pointer">
+<b>${p.name||"No name"}</b>
+<span class="code-badge">${p.itemCode||""}</span>
+</div>
+<button class="danger">Delete</button>
+`;
 
-      row.innerHTML=`
-        <div style="cursor:pointer">
-          <b>${p.name||"No name"}</b>
-          <span class="code-badge">${p.itemCode||""}</span>
-        </div>
-        <button class="danger">Delete</button>
-      `;
+row.children[0].onclick=()=>{
+document.getElementById("viewContent").innerHTML=`
+<h3>${p.name}</h3>
+<b>Item Code:</b> ${p.itemCode||""}<br>
+<p>${p.desc||""}</p>
+${(p.images||[]).map(i=>`<img src="${i}" style="width:100%;margin-top:8px;border-radius:8px">`).join("")}
+`;
+document.getElementById("viewModal").style.display="flex";
+};
 
-      row.children[0].onclick=()=>{
-        document.getElementById("viewContent").innerHTML=`
-          <h3>${p.name}</h3>
-          <b>Item Code:</b> ${p.itemCode||""}<br>
-          <p>${p.desc||""}</p>
-          ${(p.images||[]).map(i=>`<img src="${i}" style="width:100%;margin-top:8px;border-radius:8px">`).join("")}
-        `;
-        document.getElementById("viewModal").style.display="flex";
-      };
+row.querySelector("button").onclick=async()=>{
+if(confirm("Delete product?")){
+await deleteDoc(doc(db,"products",d.id));
+}
+};
 
-      row.querySelector("button").onclick=async()=>{
-        if(confirm("Delete product?")){
-          await deleteDoc(doc(db,"products",d.id));
-        }
-      };
-
-      list.appendChild(row);
-    });
-  });
+list.appendChild(row);
+});
+});
 }
 
 document.getElementById("closeModal").onclick=()=>{
-  document.getElementById("viewModal").style.display="none";
+document.getElementById("viewModal").style.display="none";
 };
 </script>
 </body>
