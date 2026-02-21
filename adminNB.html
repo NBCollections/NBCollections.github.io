@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NB Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body{margin:0;font-family:system-ui;background:#0f172a;color:#e5e7eb}
+.container{max-width:1100px;margin:auto;padding:20px}
+.card{background:#111827;border-radius:16px;padding:20px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+input,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #334155;background:#020617;color:#fff}
+button{background:#22c55e;border:none;padding:12px;border-radius:10px;font-weight:700;cursor:pointer}
+button.danger{background:#ef4444;color:#fff}
+.preview-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.preview{width:70px;height:70px;object-fit:cover;border-radius:8px}
+.product-row{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #1f2937}
+.hidden{display:none}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:#111827;border-radius:16px;max-width:700px;width:100%;padding:20px;max-height:90vh;overflow:auto;color:#fff}
+.code-badge{background:#2563eb;padding:2px 6px;border-radius:6px;font-size:12px;margin-left:6px}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<div id="loginCard" class="card" style="max-width:420px;margin:80px auto">
+  <h2>Admin Login</h2>
+  <input id="pinInput" type="password" maxlength="6" placeholder="Enter PIN">
+  <button id="loginBtn">Login</button>
+  <div id="loginMsg"></div>
+</div>
+
+<div id="panel" class="hidden">
+
+<div class="card">
+<h2>Add Product</h2>
+
+<div class="grid">
+<input id="itemCode" placeholder="Item Code (required)">
+<input id="name" placeholder="Product name">
+<input id="category" placeholder="Category">
+<input id="price" type="number" placeholder="Price">
+<input id="discount" type="number" placeholder="Discount price">
+</div>
+
+<textarea id="desc" placeholder="Description"></textarea>
+
+<label>Product Images (1–5)</label>
+<input id="images" type="file" accept="image/*" multiple>
+<div id="imagePreview" class="preview-grid"></div>
+
+<h3>Colors (name only)</h3>
+<div class="grid">
+<input id="colorName" placeholder="Color name">
+<button type="button" id="addColorBtn">Add Color</button>
+</div>
+<div id="colorList"></div>
+
+<button id="submitBtn">Upload Product</button>
+<div id="msg"></div>
+</div>
+
+<div class="card">
+<h2>Products</h2>
+<div id="productList"></div>
+</div>
+
+</div>
+</div>
+
+<div id="viewModal" class="modal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between">
+      <h3>Product Details</h3>
+      <span style="cursor:pointer;font-size:22px" id="closeModal">✖</span>
+    </div>
+    <div id="viewContent"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey:"AIzaSyCz_ofUMnrO-MpGRZQzi8QFwkFMTM5qK2o",
+  authDomain:"nbcollections-9c446.firebaseapp.com",
+  projectId:"nbcollections-9c446"
+});
+const db = getFirestore(app);
+
+let colors=[];
+let selectedFiles=[];
+let existingCodes=new Set();
+
+/* SAFE ELEMENTS */
+const loginBtn=document.getElementById("loginBtn");
+const submitBtn=document.getElementById("submitBtn");
+const imagesInput=document.getElementById("images");
+
+/* LOGIN */
+loginBtn.onclick=()=>{
+  const pinEl=document.getElementById("pinInput");
+  if(pinEl && pinEl.value==="123456"){
+    document.getElementById("loginCard").classList.add("hidden");
+    document.getElementById("panel").classList.remove("hidden");
+    startProductsListener();
+  }else{
+    document.getElementById("loginMsg").textContent="Wrong PIN";
+  }
+};
+
+/* IMAGE COMPRESS */
+function compressImage(file){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const reader=new FileReader();
+    reader.onload=e=>img.src=e.target.result;
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      const scale=Math.min(1,1000/img.width);
+      canvas.width=img.width*scale;
+      canvas.height=img.height*scale;
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      resolve(canvas.toDataURL("image/jpeg",0.8));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* MULTI IMAGE */
+imagesInput.addEventListener("change",(e)=>{
+  const newFiles=[...e.target.files];
+  for(const f of newFiles){
+    if(selectedFiles.length>=5) break;
+    selectedFiles.push(f);
+  }
+  renderPreview();
+  imagesInput.value="";
+});
+
+function renderPreview(){
+  const preview=document.getElementById("imagePreview");
+  preview.innerHTML="";
+  selectedFiles.forEach(f=>{
+    const img=document.createElement("img");
+    img.src=URL.createObjectURL(f);
+    img.className="preview";
+    preview.appendChild(img);
+  });
+}
+
+/* COLORS */
+document.getElementById("addColorBtn").onclick=()=>{
+  const colorInput=document.getElementById("colorName");
+  if(!colorInput.value) return;
+  colors.push(colorInput.value.trim());
+  document.getElementById("colorList").innerHTML+=`<div>${colorInput.value}</div>`;
+  colorInput.value="";
+};
+
+/* ADD PRODUCT — BULLETPROOF */
+submitBtn.onclick=async()=>{
+  const itemCodeEl=document.getElementById("itemCode");
+  const nameEl=document.getElementById("name");
+  const descEl=document.getElementById("desc");
+  const priceEl=document.getElementById("price");
+  const discountEl=document.getElementById("discount");
+  const categoryEl=document.getElementById("category");
+  const msgEl=document.getElementById("msg");
+
+  if(!itemCodeEl || !nameEl){
+    alert("Form not ready. Refresh.");
+    return;
+  }
+
+  const code=itemCodeEl.value.trim();
+  const productName=nameEl.value.trim();
+
+  if(!code){ alert("Item code required"); return; }
+  if(existingCodes.has(code)){ alert("Item code already exists"); return; }
+  if(!productName){ alert("Product name required"); return; }
+  if(selectedFiles.length<1 || selectedFiles.length>5){
+    alert("Upload 1–5 images"); return;
+  }
+
+  submitBtn.disabled=true;
+  msgEl.textContent="Uploading...";
+
+  try{
+    const imageUrls=[];
+    for(const f of selectedFiles){
+      imageUrls.push(await compressImage(f));
+    }
+
+    await addDoc(collection(db,"products"),{
+      itemCode:code,
+      name:productName,
+      desc:descEl?.value?.trim()||"",
+      price:Number(priceEl?.value)||0,
+      discount:discountEl?.value ? Number(discountEl.value) : null,
+      category:categoryEl?.value?.trim()||"",
+      images:imageUrls,
+      colors:colors||[],
+      whatsapp:"917798419643",
+      created:serverTimestamp()
+    });
+
+    msgEl.textContent="✅ Product added";
+
+    document.querySelectorAll("input,textarea").forEach(el=>el.value="");
+    selectedFiles=[]; colors=[];
+    document.getElementById("imagePreview").innerHTML="";
+    document.getElementById("colorList").innerHTML="";
+
+  }catch(err){
+    console.error(err);
+    msgEl.textContent="Error: "+err.message;
+  }
+
+  submitBtn.disabled=false;
+};
+
+/* PRODUCT LIST */
+function startProductsListener(){
+  onSnapshot(collection(db,"products"),snap=>{
+    const list=document.getElementById("productList");
+    list.innerHTML="";
+    existingCodes.clear();
+
+    snap.forEach(d=>{
+      const p=d.data();
+      if(p.itemCode) existingCodes.add(p.itemCode);
+
+      const row=document.createElement("div");
+      row.className="product-row";
+
+      row.innerHTML=`
+        <div style="cursor:pointer">
+          <b>${p.name||"No name"}</b>
+          <span class="code-badge">${p.itemCode||""}</span>
+        </div>
+        <button class="danger">Delete</button>
+      `;
+
+      row.children[0].onclick=()=>{
+        document.getElementById("viewContent").innerHTML=`
+          <h3>${p.name}</h3>
+          <b>Item Code:</b> ${p.itemCode||""}<br>
+          <p>${p.desc||""}</p>
+          ${(p.images||[]).map(i=>`<img src="${i}" style="width:100%;margin-top:8px;border-radius:8px">`).join("")}
+        `;
+        document.getElementById("viewModal").style.display="flex";
+      };
+
+      row.querySelector("button").onclick=async()=>{
+        if(confirm("Delete product?")){
+          await deleteDoc(doc(db,"products",d.id));
+        }
+      };
+
+      list.appendChild(row);
+    });
+  });
+}
+
+document.getElementById("closeModal").onclick=()=>{
+  document.getElementById("viewModal").style.display="none";
+};
+</script>
+</body>
+</html>
