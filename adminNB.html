@@ -38,7 +38,7 @@ button.danger{background:#ef4444;color:#fff}
 <div class="grid">
 <input id="name" placeholder="Product name">
 <input id="category" placeholder="Category">
-<input id="price" type="number" placeholder="Price (optional)">
+<input id="price" type="number" placeholder="Price (required)">
 <input id="discount" type="number" placeholder="Discount (optional)">
 </div>
 
@@ -141,14 +141,17 @@ box.appendChild(img);
 
 submitBtn.onclick=async()=>{
 const nameEl=document.getElementById("name");
-const descEl=document.getElementById("desc");
 const priceEl=document.getElementById("price");
+const descEl=document.getElementById("desc");
 const discountEl=document.getElementById("discount");
 const categoryEl=document.getElementById("category");
 const msgEl=document.getElementById("msg");
 
 const productName=nameEl.value.trim();
+const priceValue=Number(priceEl.value);
+
 if(!productName){alert("Product name required");return;}
+if(!priceEl.value||priceValue<=0){alert("Valid price required");return;}
 if(selectedFiles.length<1||selectedFiles.length>5){alert("Upload 1–5 images");return;}
 
 submitBtn.disabled=true;
@@ -164,7 +167,7 @@ await addDoc(collection(db,"products"),{
 itemCode:String(nextCode),
 name:productName,
 desc:descEl?.value?.trim()||"",
-price:Number(priceEl?.value)||0,
+price:priceValue,
 discount:discountEl?.value?Number(discountEl.value):null,
 category:categoryEl?.value?.trim()||"",
 images:imageUrls,
