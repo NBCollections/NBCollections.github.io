@@ -61,23 +61,40 @@ button.danger{background:#ef4444;color:#fff}
 </div>
 
 <script type="module">
-import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import{getFirestore,collection,addDoc,serverTimestamp,onSnapshot,deleteDoc,doc,getDocs}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import{
+initializeApp
+}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import{
+getFirestore,
+collection,
+addDoc,
+serverTimestamp,
+onSnapshot,
+deleteDoc,
+doc,
+getDocs,
+updateDoc
+}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app=initializeApp({
 apiKey:"AIzaSyCz_ofUMnrO-MpGRZQzi8QFwkFMTM5qK2o",
 authDomain:"nbcollections-9c446.firebaseapp.com",
 projectId:"nbcollections-9c446"
 });
+
 const db=getFirestore(app);
 
 let selectedFiles=[];
 let nextCode=1000;
+let editingId=null;
+let existingImages=[];
 
 const loginBtn=document.getElementById("loginBtn");
 const submitBtn=document.getElementById("submitBtn");
 const imagesInput=document.getElementById("images");
 
+// 🔐 LOGIN
 loginBtn.onclick=async()=>{
 const pin=document.getElementById("pinInput");
 if(pin&&pin.value==="123456"){
@@ -90,6 +107,7 @@ document.getElementById("loginMsg").textContent="Wrong PIN";
 }
 };
 
+// 🔢 PREPARE ITEM CODE
 async function prepareNextCode(){
 const snap=await getDocs(collection(db,"products"));
 let max=999;
@@ -100,6 +118,7 @@ if(!isNaN(n)&&n>max) max=n;
 nextCode=max+1;
 }
 
+// 🖼️ IMAGE COMPRESS
 function compressImage(file){
 return new Promise(resolve=>{
 const img=new Image();
@@ -118,19 +137,29 @@ reader.readAsDataURL(file);
 });
 }
 
+// 📂 IMAGE SELECT
 imagesInput.addEventListener("change",e=>{
 const files=[...e.target.files];
 for(const f of files){
-if(selectedFiles.length>=5) break;
+if(selectedFiles.length+existingImages.length>=5) break;
 selectedFiles.push(f);
 }
 renderPreview();
 imagesInput.value="";
 });
 
+// 🖼️ PREVIEW
 function renderPreview(){
 const box=document.getElementById("imagePreview");
 box.innerHTML="";
+
+existingImages.forEach(src=>{
+const img=document.createElement("img");
+img.src=src;
+img.className="preview";
+box.appendChild(img);
+});
+
 selectedFiles.forEach(f=>{
 const img=document.createElement("img");
 img.src=URL.createObjectURL(f);
@@ -139,6 +168,17 @@ box.appendChild(img);
 });
 }
 
+// 🔁 RESET FORM
+function resetForm(){
+document.querySelectorAll("input,textarea").forEach(el=>el.value="");
+selectedFiles=[];
+existingImages=[];
+editingId=null;
+document.getElementById("imagePreview").innerHTML="";
+submitBtn.textContent="Upload Product";
+}
+
+// 🚀 SUBMIT / UPDATE
 submitBtn.onclick=async()=>{
 const nameEl=document.getElementById("name");
 const priceEl=document.getElementById("price");
@@ -152,17 +192,37 @@ const priceValue=Number(priceEl.value);
 
 if(!productName){alert("Product name required");return;}
 if(!priceEl.value||priceValue<=0){alert("Valid price required");return;}
-if(selectedFiles.length<1||selectedFiles.length>5){alert("Upload 1–5 images");return;}
 
 submitBtn.disabled=true;
-msgEl.textContent="Uploading...";
+msgEl.textContent=editingId?"Updating...":"Uploading...";
 
 try{
-const imageUrls=[];
+
+let imageUrls=[...existingImages];
+
 for(const f of selectedFiles){
 imageUrls.push(await compressImage(f));
 }
 
+if(imageUrls.length<1||imageUrls.length>5){
+alert("Total images must be 1–5");
+submitBtn.disabled=false;
+return;
+}
+
+if(editingId){
+// ✏️ UPDATE
+await updateDoc(doc(db,"products",editingId),{
+name:productName,
+desc:descEl?.value?.trim()||"",
+price:priceValue,
+discount:discountEl?.value?Number(discountEl.value):null,
+category:categoryEl?.value?.trim()||"",
+images:imageUrls
+});
+msgEl.textContent="✅ Product updated";
+}else{
+// ➕ ADD
 await addDoc(collection(db,"products"),{
 itemCode:String(nextCode),
 name:productName,
@@ -173,39 +233,65 @@ category:categoryEl?.value?.trim()||"",
 images:imageUrls,
 created:serverTimestamp()
 });
-
 nextCode++;
 msgEl.textContent="✅ Product added";
+}
 
-document.querySelectorAll("input,textarea").forEach(el=>el.value="");
-selectedFiles=[];
-document.getElementById("imagePreview").innerHTML="";
+resetForm();
+
 }catch(err){
 msgEl.textContent="Error: "+err.message;
 }
+
 submitBtn.disabled=false;
 };
 
+// 📡 LISTENER
 function startProductsListener(){
 onSnapshot(collection(db,"products"),snap=>{
 const list=document.getElementById("productList");
 list.innerHTML="";
+
 snap.forEach(d=>{
 const p=d.data();
 const row=document.createElement("div");
 row.className="product-row";
+
 row.innerHTML=`
 <div>
 <b>${p.name||"No name"}</b>
 <span class="code-badge">${p.itemCode||""}</span>
 </div>
+<div style="display:flex;gap:6px">
+<button class="editBtn">Edit</button>
 <button class="danger">Delete</button>
+</div>
 `;
-row.querySelector("button").onclick=async()=>{
+
+// ✏️ EDIT
+row.querySelector(".editBtn").onclick=()=>{
+editingId=d.id;
+existingImages=p.images||[];
+
+document.getElementById("name").value=p.name||"";
+document.getElementById("price").value=p.price||"";
+document.getElementById("desc").value=p.desc||"";
+document.getElementById("discount").value=p.discount||"";
+document.getElementById("category").value=p.category||"";
+
+selectedFiles=[];
+renderPreview();
+submitBtn.textContent="Update Product";
+window.scrollTo({top:0,behavior:"smooth"});
+};
+
+// 🗑️ DELETE
+row.querySelector(".danger").onclick=async()=>{
 if(confirm("Delete product?")){
 await deleteDoc(doc(db,"products",d.id));
 }
 };
+
 list.appendChild(row);
 });
 });
