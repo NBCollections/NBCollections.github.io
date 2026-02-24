@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>NB Admin</title>
+<title>NB Admin V3</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{
@@ -26,7 +26,9 @@ button{border:none;padding:12px 16px;border-radius:12px;font-weight:700;cursor:p
 .editBtn{background:var(--accent);color:white}
 .danger{background:var(--danger);color:white}
 .preview-grid{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.preview-wrap{position:relative}
 .preview{width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #243041}
+.img-del{position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .product-row{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid #1f2937}
 .code-badge{background:#1d4ed8;padding:3px 8px;border-radius:999px;font-size:12px;margin-left:6px}
 .hidden{display:none}
@@ -34,81 +36,28 @@ button{border:none;padding:12px 16px;border-radius:12px;font-weight:700;cursor:p
 .searchBox input{flex:1}
 .badge{font-size:12px;opacity:.8}
 .clickable-name{cursor:pointer;color:#93c5fd}
+.percent-box{font-size:13px;margin-top:4px;opacity:.9}
 
-/* 🔥 IMPROVED MOBILE MODAL */
-.modal{
-  position:fixed;inset:0;background:rgba(0,0,0,.7);
-  display:none;align-items:flex-end;justify-content:center;
-  z-index:999;
-}
+/* MODAL */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:flex-end;justify-content:center;z-index:999}
 .modal.active{display:flex}
-.modal-card{
-  background:#0f172a;
-  width:100%;
-  max-width:720px;
-  max-height:90vh;
-  overflow:auto;
-  border-radius:20px 20px 0 0;
-  padding:18px;
-  animation:slideUp .25s ease;
-}
-@keyframes slideUp{
-  from{transform:translateY(40px);opacity:.6}
-  to{transform:translateY(0);opacity:1}
-}
+.modal-card{background:#0f172a;width:100%;max-width:720px;max-height:90vh;overflow:auto;border-radius:20px 20px 0 0;padding:18px}
 .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .modal img{width:100%;border-radius:12px}
-.close-btn{
-  position:sticky;
-  top:0;
-  float:right;
-  background:#ef4444;
-  color:white;
-  padding:6px 10px;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-/* 📱 MOBILE PERFECT */
-@media(max-width:700px){
-  .modal{
-    align-items:flex-end;
-  }
-  .modal-card{
-    border-radius:22px 22px 0 0;
-    padding:16px;
-  }
-  .modal-grid{
-    grid-template-columns:1fr;
-  }
-}
-
-@media(max-width:480px){
-  .product-row{
-    flex-direction:column;
-    align-items:flex-start;
-    gap:8px;
-  }
-}
+.close-btn{position:sticky;top:0;float:right;background:#ef4444;color:white;padding:6px 10px;border-radius:8px;cursor:pointer}
+@media(max-width:700px){.modal-grid{grid-template-columns:1fr}}
+@media(max-width:480px){.product-row{flex-direction:column;align-items:flex-start;gap:8px}}
 </style>
 </head>
 <body>
 
 <div class="container">
 
-<div id="loginCard" class="card" style="max-width:420px;margin:80px auto">
-<h2>Admin Login</h2>
-<input id="pinInput" type="password" maxlength="6" placeholder="Enter PIN">
-<br><br>
-<button id="loginBtn" class="primary">Login</button>
-<div id="loginMsg"></div>
-</div>
-
-<div id="panel" class="hidden">
+<div id="panel">
 
 <div class="header">
 <div class="title">🛍️ NB Collections Admin</div>
-<div class="badge">Live Panel</div>
+<div class="badge">Auto Login</div>
 </div>
 
 <div class="card">
@@ -117,8 +66,11 @@ button{border:none;padding:12px 16px;border-radius:12px;font-weight:700;cursor:p
 <div class="grid">
 <input id="name" placeholder="Product name">
 <input id="category" placeholder="Category">
+<div>
 <input id="price" type="number" placeholder="Price (required)">
-<input id="discount" type="number" placeholder="Discount (optional)">
+<div id="percentInfo" class="percent-box"></div>
+</div>
+<input id="discount" type="number" placeholder="Discount price (optional)">
 </div>
 
 <textarea id="desc" placeholder="Description"></textarea>
@@ -146,7 +98,7 @@ button{border:none;padding:12px 16px;border-radius:12px;font-weight:700;cursor:p
 </div>
 </div>
 
-<!-- 🔥 PRODUCT MODAL -->
+<!-- MODAL -->
 <div id="productModal" class="modal">
   <div class="modal-card">
     <div class="close-btn" id="closeModal">✕</div>
@@ -183,35 +135,29 @@ let editingId=null;
 let existingImages=[];
 let allProducts=[];
 
-const loginBtn=document.getElementById("loginBtn");
 const submitBtn=document.getElementById("submitBtn");
 const imagesInput=document.getElementById("images");
 const searchInput=document.getElementById("searchCode");
+const priceEl=document.getElementById("price");
+const discountEl=document.getElementById("discount");
+const percentInfo=document.getElementById("percentInfo");
 
-const modal=document.getElementById("productModal");
-document.getElementById("closeModal").onclick=()=>modal.classList.remove("active");
-modal.onclick=e=>{if(e.target===modal) modal.classList.remove("active")};
+// 🔥 AUTO LOGIN COOKIE
+localStorage.setItem("nb_admin_logged","1");
 
-loginBtn.onclick=async()=>{
-const pin=document.getElementById("pinInput");
-if(pin.value==="123456"){
-document.getElementById("loginCard").classList.add("hidden");
-document.getElementById("panel").classList.remove("hidden");
-await prepareNextCode();
-startProductsListener();
-}else document.getElementById("loginMsg").textContent="Wrong PIN";
-};
-
-async function prepareNextCode(){
-const snap=await getDocs(collection(db,"products"));
-let max=999;
-snap.forEach(d=>{
-const n=parseInt(d.data().itemCode);
-if(!isNaN(n)&&n>max) max=n;
-});
-nextCode=max+1;
+// DISCOUNT PERCENT LIVE
+function updatePercent(){
+const price=Number(priceEl.value);
+const disc=Number(discountEl.value);
+if(price>0 && disc>0 && disc<price){
+const pct=Math.round(((price-disc)/price)*100);
+percentInfo.textContent=`Discount: ${pct}% OFF`;
+}else percentInfo.textContent="";
 }
+priceEl.addEventListener("input",updatePercent);
+discountEl.addEventListener("input",updatePercent);
 
+// COMPRESS
 function compressImage(file){
 return new Promise(resolve=>{
 const img=new Image();
@@ -230,6 +176,7 @@ reader.readAsDataURL(file);
 });
 }
 
+// IMAGE SELECT
 imagesInput.addEventListener("change",e=>{
 const files=[...e.target.files];
 for(const f of files){
@@ -240,16 +187,33 @@ renderPreview();
 imagesInput.value="";
 });
 
+// PREVIEW WITH DELETE
 function renderPreview(){
 const box=document.getElementById("imagePreview");
 box.innerHTML="";
-existingImages.forEach(src=>{
+
+existingImages.forEach((src,i)=>{
+const wrap=document.createElement("div");
+wrap.className="preview-wrap";
 const img=document.createElement("img");
-img.src=src;img.className="preview";box.appendChild(img);
+img.src=src;img.className="preview";
+const del=document.createElement("div");
+del.className="img-del";del.textContent="×";
+del.onclick=()=>{existingImages.splice(i,1);renderPreview();};
+wrap.appendChild(img);wrap.appendChild(del);
+box.appendChild(wrap);
 });
-selectedFiles.forEach(f=>{
+
+selectedFiles.forEach((f,i)=>{
+const wrap=document.createElement("div");
+wrap.className="preview-wrap";
 const img=document.createElement("img");
-img.src=URL.createObjectURL(f);img.className="preview";box.appendChild(img);
+img.src=URL.createObjectURL(f);img.className="preview";
+const del=document.createElement("div");
+del.className="img-del";del.textContent="×";
+del.onclick=()=>{selectedFiles.splice(i,1);renderPreview();};
+wrap.appendChild(img);wrap.appendChild(del);
+box.appendChild(wrap);
 });
 }
 
@@ -259,11 +223,12 @@ selectedFiles=[];existingImages=[];editingId=null;
 document.getElementById("imagePreview").innerHTML="";
 submitBtn.textContent="Upload Product";
 document.getElementById("formTitle").textContent="Add Product";
+percentInfo.textContent="";
 }
 
 submitBtn.onclick=async()=>{
 const name=document.getElementById("name").value.trim();
-const price=Number(document.getElementById("price").value);
+const price=Number(priceEl.value);
 const msg=document.getElementById("msg");
 if(!name){alert("Product name required");return;}
 if(!price||price<=0){alert("Valid price required");return;}
@@ -279,7 +244,7 @@ await updateDoc(doc(db,"products",editingId),{
 name,
 desc:document.getElementById("desc").value.trim()||"",
 price,
-discount:document.getElementById("discount").value?Number(document.getElementById("discount").value):null,
+discount:discountEl.value?Number(discountEl.value):null,
 category:document.getElementById("category").value.trim()||"",
 images:imageUrls
 });
@@ -290,7 +255,7 @@ itemCode:String(nextCode),
 name,
 desc:document.getElementById("desc").value.trim()||"",
 price,
-discount:document.getElementById("discount").value?Number(document.getElementById("discount").value):null,
+discount:discountEl.value?Number(discountEl.value):null,
 category:document.getElementById("category").value.trim()||"",
 images:imageUrls,
 created:serverTimestamp()
@@ -308,6 +273,17 @@ submitBtn.disabled=false;
 document.getElementById("clearSearch").onclick=()=>{searchInput.value="";renderList();};
 searchInput.addEventListener("input",renderList);
 
+async function prepareNextCode(){
+const snap=await getDocs(collection(db,"products"));
+let max=999;
+snap.forEach(d=>{
+const n=parseInt(d.data().itemCode);
+if(!isNaN(n)&&n>max) max=n;
+});
+nextCode=max+1;
+}
+prepareNextCode();
+
 function startProductsListener(){
 onSnapshot(collection(db,"products"),snap=>{
 allProducts=[];
@@ -315,6 +291,12 @@ snap.forEach(d=>allProducts.push({id:d.id,...d.data()}));
 renderList();
 });
 }
+startProductsListener();
+
+// MODAL
+const modal=document.getElementById("productModal");
+document.getElementById("closeModal").onclick=()=>modal.classList.remove("active");
+modal.onclick=e=>{if(e.target===modal) modal.classList.remove("active")};
 
 function openModal(p){
 document.getElementById("modalName").textContent=p.name||"";
@@ -365,6 +347,7 @@ document.getElementById("discount").value=p.discount||"";
 document.getElementById("category").value=p.category||"";
 selectedFiles=[];
 renderPreview();
+updatePercent();
 submitBtn.textContent="Update Product";
 document.getElementById("formTitle").textContent="Edit Product";
 window.scrollTo({top:0,behavior:"smooth"});
