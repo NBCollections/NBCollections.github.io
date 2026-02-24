@@ -22,7 +22,7 @@ body{margin:0;font-family:system-ui;background:#f3f4f6}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px}
 .modal-box{background:#fff;border-radius:16px;max-width:900px;width:100%;padding:20px;max-height:90vh;overflow:auto}
 .thumb{display:flex;gap:6px;margin-top:8px}
-.thumb img{width:70px;height:70px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.thumb img{width:70px;height:70px;object-fit:cover;b-radius:8px;cursor:pointer;border:2px solid transparent}
 .thumb img.active{border-color:#2563eb}
 .order-btn{width:100%;margin-top:14px;background:#25D366;border:none;padding:12px;border-radius:10px;font-weight:800;color:#fff;cursor:pointer}
 .close{float:right;font-size:22px;cursor:pointer}
@@ -142,7 +142,7 @@ modalBody.innerHTML=`
 <img id="mainImg" style="width:100%;border-radius:12px;margin-top:10px">
 <div id="thumbRow" class="thumb"></div>
 <p>${p.desc||""}</p>
-<button id="orderBtn" class="order-btn">Order This One</button>
+<button id="orderBtn" class="order-btn">enquire about This Product on Whatsapp</button>
 `;
 
 modal.style.display="flex";
@@ -168,13 +168,16 @@ document.getElementById("orderBtn").onclick=()=>{
 const finalCode=`${p.itemCode||""}/${index+1}`;
 
 const message=
-`Hello, I want this product:
+`Hello, I want to enquire about this product:
 
 Item Code: ${finalCode}
 Name: ${p.name||""}
 
 Description:
-${p.desc||""}`;
+${p.desc||""}
+
+*Enter You Enquiry*:
+`;
 
 const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const url=isMobile
